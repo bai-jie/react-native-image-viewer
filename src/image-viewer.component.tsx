@@ -55,6 +55,16 @@ export default class ImageViewer extends React.Component<Props, State> {
    * props 有变化时执行
    */
   public init(prevProps: Readonly<Props>, prevState: Readonly<State>, nextProps: Readonly<Props>) {
+    if (
+      prevProps.imageUrls === nextProps.imageUrls &&
+      prevProps.index === nextProps.index &&
+      prevState.imageSizes &&
+      prevState.imageSizes.length === nextProps.imageUrls.length &&
+      prevState.currentShowIndex === nextProps.index
+    ) {
+      return;
+    }
+
     if (nextProps.imageUrls.length === 0) {
       // 隐藏时候清空
       this.fadeAnim.setValue(0);
@@ -62,14 +72,16 @@ export default class ImageViewer extends React.Component<Props, State> {
     }
 
     const prevImageUrls = prevProps.imageUrls;
+    const prevImageUrlsIndexByUrl = new Map<string, { index: number, imageUrl: IImageInfo }>();
+    prevImageUrls.forEach((imageUrl, index) => prevImageUrlsIndexByUrl.set(imageUrl.url, { index, imageUrl }));
 
     // 给新 imageSizes 塞入空数组
     const prevImageSizes = prevState.imageSizes;
     const imageSizes: IImageSize[] = [];
     nextProps.imageUrls.forEach(imageUrl => {
-      const prevImageIndex = prevImageUrls.findIndex(it => it.url === imageUrl.url);
-      if (prevImageIndex >= 0 && prevImageSizes![prevImageIndex]) {
-        imageSizes.push(prevImageSizes![prevImageIndex]);
+      const foundPrevImageUrl = prevImageUrlsIndexByUrl.get(imageUrl.url);
+      if (foundPrevImageUrl && prevImageSizes![foundPrevImageUrl.index]) {
+        imageSizes.push(prevImageSizes![foundPrevImageUrl.index]);
       } else {
         imageSizes.push({
           width: imageUrl.width || 0,
