@@ -41,57 +41,50 @@ export default class ImageViewer extends React.Component<Props, State> {
   // 是否执行过 layout. fix 安卓不断触发 onLayout 的 bug
   private hasLayout = false;
 
-  // 记录已加载的图片 index
-  private loadedIndex = new Map<number, boolean>();
-
-  private handleLongPressWithIndex = new Map<number, any>();
-
   private imageRefs: any[] = [];
 
   public componentWillMount() {
-    this.init(this.props);
+    this.init(this.props, this.state, this.props);
   }
 
   public componentWillReceiveProps(nextProps: Props) {
-    if (nextProps.index !== this.state.currentShowIndex) {
-      this.setState(
-        {
-          currentShowIndex: nextProps.index
-        },
-        () => {
-          // 立刻预加载要看的图
-          this.loadImage(nextProps.index || 0);
-
-          this.jumpToCurrentImage();
-
-          // 显示动画
-          Animated.timing(this.fadeAnim, {
-            toValue: 1,
-            duration: 200
-          }).start();
-        }
-      );
-    }
+    this.init(this.props, this.state, nextProps);
   }
 
   /**
    * props 有变化时执行
    */
-  public init(nextProps: Props) {
+  public init(prevProps: Readonly<Props>, prevState: Readonly<State>, nextProps: Readonly<Props>) {
     if (nextProps.imageUrls.length === 0) {
       // 隐藏时候清空
       this.fadeAnim.setValue(0);
       return this.setState(new State());
     }
 
-    // 给 imageSizes 塞入空数组
+    const prevImageUrls = prevProps.imageUrls;
+
+    // 给新 imageSizes 塞入空数组
+    const prevImageSizes = prevState.imageSizes;
     const imageSizes: IImageSize[] = [];
     nextProps.imageUrls.forEach(imageUrl => {
-      imageSizes.push({
-        width: imageUrl.width || 0,
-        height: imageUrl.height || 0,
-        status: 'loading'
-      });
+      const prevImageIndex = prevImageUrls.findIndex(it => it.url === imageUrl.url);
+      if (prevImageIndex >= 0 && prevImageSizes![prevImageIndex]) {
+        imageSizes.push(prevImageSizes![prevImageIndex]);
+      } else {
+        imageSizes.push({
+          width: imageUrl.width || 0,
+          height: imageUrl.height || 0,
+          status: 'loading'
+        });
+      }
+    });
+
+    // 更新 imageRefs
+    prevImageUrls.forEach((image, index) => {
+      if (!nextProps.imageUrls[index] || nextProps.imageUrls[index].url !== image.url) {
+        this.resetImageByIndex(index);
+        this.imageRefs[index] = undefined;
+      }
     });
 
     this.setState(
@@ -136,11 +129,6 @@ export default class ImageViewer extends React.Component<Props, State> {
     if (!this!.state!.imageSizes![index]) {
       return;
     }
-
-    if (this.loadedIndex.has(index)) {
-      return;
-    }
-    this.loadedIndex.set(index, true);
 
     const image = this.props.imageUrls[index];
     const imageStatus = { ...this!.state!.imageSizes![index] };
@@ -436,9 +424,7 @@ export default class ImageViewer extends React.Component<Props, State> {
         return <View key={index} style={{ width: screenWidth, height: screenHeight }} />;
       }
 
-      if (!this.handleLongPressWithIndex.has(index)) {
-        this.handleLongPressWithIndex.set(index, this.handleLongPress.bind(this, image));
-      }
+      const handleLongPress = this.handleLongPress.bind(this, image);
 
       let width = this!.state!.imageSizes![index] && this!.state!.imageSizes![index].width;
       let height = this.state.imageSizes![index] && this.state.imageSizes![index].height;
@@ -470,7 +456,7 @@ export default class ImageViewer extends React.Component<Props, State> {
           horizontalOuterRangeOffset={this.handleHorizontalOuterRangeOffset}
           responderRelease={this.handleResponderRelease}
           onMove={this.props.onMove}
-          onLongPress={this.handleLongPressWithIndex.get(index)}
+          onLongPress={handleLongPress}
           onClick={this.handleClick}
           onDoubleClick={this.handleDoubleClick}
           enableSwipeDown={this.props.enableSwipeDown}
@@ -539,7 +525,7 @@ export default class ImageViewer extends React.Component<Props, State> {
               horizontalOuterRangeOffset={this.handleHorizontalOuterRangeOffset}
               responderRelease={this.handleResponderRelease}
               onMove={this.props.onMove}
-              onLongPress={this.handleLongPressWithIndex.get(index)}
+              onLongPress={handleLongPress}
               onClick={this.handleClick}
               onDoubleClick={this.handleDoubleClick}
               imageWidth={width}
